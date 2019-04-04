@@ -1,0 +1,148 @@
+<aura:component controller="DreamList">
+	<aura:attribute name="selectedList" type="List" />
+    <aura:attribute name="data" type="Object" />
+    <aura:attribute name="columns" type="Object" />
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}" />
+     <aura:attribute name="cityMap" type="Map"/>
+     <lightning:select aura:id="cityPicklist" value="{!v.city}" label='picklist' class="slds-show_inline-block">
+                    <aura:iteration items="{!v.cityMap}" var="ind" indexVar="key">
+                        <option text="{!ind.value}" value="{!ind.key}" />
+                    </aura:iteration>
+   			 </lightning:select><br/><br/>
+    <div>
+        <lightning:datatable aura:id="Companytable"	
+                             keyField="id" 
+                             data="{!v.data}" 
+                             columns="{!v.columns}" 
+                             onrowselection="{!c.doSelected}"
+                             /> 
+                             
+        <lightning:button label="save" onclick="{! c.doUpdate }"/>
+         
+        	
+    
+    </div>
+</aura:component>
+({
+	doInit : function(component, event, helper) {
+        component.set('v.columns',[{label: 'Company name',fieldName: 'Name', type :'text'},
+                                   {label: 'First name',fieldName: 'FirstName__c', type :'text'},
+                                   {label: 'Last name',fieldName: 'LastName__c', type :'text'},
+                                   {label: 'Email',fieldName: 'email__c', type :'email'},
+                                   {label: 'UpdatedChecked',fieldName: 'updateField__c', type :'text'}
+                         ]);
+       var action = component.get('c.fetchCompany');
+      action.setCallback(this,function(response){
+                          var state = response.getState();
+          if (state === 'SUCCESS'){
+              var responseValue = response.getReturnValue();
+              console.log(responseValue)
+              component.set('v.data',responseValue);  
+          }});
+        
+       $A.enqueueAction(action);
+        helper.fetchPicklistValues(component);
+	},
+    doSelected : function(component, event, helper) {
+        alert('inside doselect');
+        var selectedRows = event.getParam('selectedRows');
+        var setRows = [];
+        for ( var i = 0; i < selectedRows.length; i++ ) {
+            
+            setRows.push(selectedRows[i]);
+
+        }
+        component.set("v.selectedList", setRows);
+        
+    }
+    ,
+    doUpdate : function(component, event, helper) {
+        alert('inside update');
+        var records = component.get("v.selectedAccts");
+        console.log(records);
+        var action = component.get('c.saveCompany');
+        var newcon = component.get('v.selectedList')
+        action.setParams({
+            "uplist" : newcon
+        });
+        
+        action.setCallback(this,function(response){
+                          var state = response.getState();
+          if (state === 'SUCCESS'){
+              var responseValue = response.getReturnValue();
+             alert(responseValue);
+              
+          }});
+        
+       $A.enqueueAction(action);
+
+    }
+})
+
+({
+     fetchPicklistValues: function(component) {
+         var action = component.get("c.getCity");
+        action.setCallback(this, function(response) {
+            var state = response.getState();
+            if (state === "SUCCESS") {
+                var result = response.getReturnValue();
+                var CityMap = [];
+                for(var key in result){
+                    CityMap.push({key: key, value: result[key]});
+                }
+                component.set("v.cityMap", CityMap);
+            }
+        });
+        $A.enqueueAction(action);
+    }
+})
+
+<aura:application extends="force:slds">
+   
+    <!--c:oppshow/ -->
+    <c:CompanyInfo/> 
+    <!--<c:MyFirstComponent /> -->
+<!--c:campingList /-->
+    
+</aura:application>
+
+public class DreamList { 
+    // method for fetch account records list  
+    @AuraEnabled
+    public static List < Company__c > fetchCompany() {
+        
+        List <Company__c > returnList = new List < Company__c > ();
+        List < Company__c> lstOfcompany = [select Name,FirstName__c,LastName__c,email__c,updateField__c from Company__c LIMIT 5];
+        
+        for (Company__c acc: lstOfcompany) {
+            returnList.add(acc);
+        }
+        return returnList;
+    }
+    
+  // method for update records after inline editing  
+    @AuraEnabled
+    public static String saveCompany(List<Company__c> uplist){        
+        
+        
+        for(Company__c c: uplist){
+            
+          c.updateField__c = 'Record updated';          
+        }
+        update uplist;
+        return 'success';
+    }
+    @AuraEnabled
+	 public static Map<String, String> getCity(){
+        Map<String, String> options = new Map<String, String>();
+        //get Company City Field Describe
+        Schema.DescribeFieldResult fieldResult = Company__c.city__c.getDescribe();
+        //get company City Picklist Values
+        List<Schema.PicklistEntry> pList = fieldResult.getPicklistValues();
+        for (Schema.PicklistEntry p: pList) {
+            //Put Picklist Value & Label in Map
+            options.put(p.getValue(), p.getLabel());
+        }
+        return options;
+    }   
+}
